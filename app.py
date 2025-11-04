@@ -22,15 +22,7 @@ st.markdown("<div class='sub'>AI-powered resume analyzer for job match screening
 # -----------------------
 jd = st.text_area("📝 Paste Job Description",
 """
-We are hiring a Python Backend Developer with hands-on experience in:
-
-• Python
-• Django / Flask
-• APIs
-• SQL
-• Data Structures
-• Git
-• Problem Solving
+Paste the job description
 """)
 
 skills_required = ["python", "django", "flask", "api", "sql", "data structures", "git", "problem solving", "machine learning"]
@@ -80,62 +72,43 @@ def extract_text_from_resume(file):
 # ----------------------------------------------------
 # Generate PDF report (Unicode-safe)
 # ----------------------------------------------------
-def make_pdf_report(name, results):
-    from fpdf import FPDF
+from fpdf import FPDF
 
-    def ascii_clean(text):
-        if isinstance(text, list):
-            return [ascii_clean(x) for x in text]
-        if isinstance(text, dict):
-            return {ascii_clean(k): ascii_clean(v) for k, v in text.items()}
-        try:
-            return str(text).encode("ascii", "ignore").decode("ascii")
-        except:
-            return str(text)
-
-    # sanitize everything
-    name = ascii_clean(name)
-    clean = {
-        "match_score": ascii_clean(results.get("match_score", "")),
-        "weighted_score": ascii_clean(results.get("weighted_score", "")),
-        "matched": ascii_clean(results.get("matched", [])),
-        "missing": ascii_clean(results.get("missing", [])),
-        "ats": ascii_clean(results.get("ats", {}))
-    }
-
+def make_pdf_report(file_name, results):
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
 
-    pdf.set_font("Arial", size=16)
-    pdf.cell(0, 8, f"Resume Screening Report - {name}", ln=True)
+    # ✅ Use a built-in core font that supports more characters
+    pdf.set_font("Helvetica", size=12)
+
+    # Title
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.cell(0, 10, "Resume Screening Report", ln=True)
+    pdf.ln(5)
+
+    pdf.set_font("Helvetica", size=12)
+    pdf.multi_cell(0, 8, f"File: {file_name}")
+    pdf.ln(5)
+
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.cell(0, 10, "Results:", ln=True)
     pdf.ln(4)
 
-    pdf.set_font("Arial", size=12)
-    pdf.cell(0, 6, f"Match Score: {clean['match_score']}%", ln=True)
-    pdf.cell(0, 6, f"Weighted Score: {clean['weighted_score']}%", ln=True)
-    pdf.ln(4)
+    pdf.set_font("Helvetica", size=12)
 
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 6, "Matched Skills:", ln=True)
-    pdf.set_font("Arial", size=11)
-    pdf.multi_cell(0, 6, ", ".join(clean["matched"]) or "None")
+    # ✅ SAFE MULTI-CELL (avoids crash)
+    for k, v in results.items():
+        text = f"- {k}: {v}"
+        try:
+            pdf.multi_cell(0, 6, text)
+        except:
+            # Fallback if a line is too long or has unicode
+            safe_text = text.encode("ascii", "ignore").decode()
+            pdf.multi_cell(0, 6, safe_text)
 
-    pdf.ln(2)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 6, "Missing Skills:", ln=True)
-    pdf.set_font("Arial", size=11)
-    pdf.multi_cell(0, 6, ", ".join(clean["missing"]) or "None")
-
-    pdf.ln(2)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 6, "ATS Checks:", ln=True)
-    pdf.set_font("Arial", size=11)
-    for k, v in clean["ats"].items():
-        pdf.multi_cell(0, 6, f"- {k}: {v}")
-
-    # output PDF as bytes
-    pdf_bytes = pdf.output(dest="S").encode("latin-1", "replace")
+    # ✅ Return binary PDF bytes safely
+    pdf_bytes = pdf.output(dest="S").encode("latin-1", "ignore")
     return pdf_bytes
 
 # ----------------------------------------------------
@@ -195,3 +168,4 @@ if uploaded_file:
                 file_name=f"report_{uploaded_file.name}.pdf",
                 mime="application/pdf"
             )
+
